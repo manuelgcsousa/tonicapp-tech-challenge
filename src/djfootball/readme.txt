@@ -1,7 +1,6 @@
-* NOTE:
-- Create '.env' file within './djfootball/' directory.
+NOTE: Create '.env' in the current directory.
 
-Example:
+* Example:
 SECRET_KEY=<string>
 DEBUG=<number>
 DATABASE_ENGINE=<string>
