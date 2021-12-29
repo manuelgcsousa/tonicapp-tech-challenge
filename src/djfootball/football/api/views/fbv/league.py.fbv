@@ -1,0 +1,102 @@
+import json
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
+from django.http import JsonResponse
+from rest_framework.decorators import api_view
+from rest_framework.parsers import JSONParser
+
+from ...models import League, Player
+from ..serializers import LeagueSerializer
+from ..paginators import SingleSetPagination
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter("page", OpenApiTypes.INT, OpenApiParameter.QUERY),
+        OpenApiParameter("per_page", OpenApiTypes.INT, OpenApiParameter.QUERY),
+        
+        OpenApiParameter("player_name", OpenApiTypes.STR, OpenApiParameter.QUERY)
+    ],
+    description="More descriptive text",
+    responses=LeagueSerializer
+)
+@api_view(["GET"])
+def read_leagues(request):
+    # default empty response.
+    res = JsonResponse({}, safe=False)
+
+    player_name = request.query_params.get("player_name")
+    if player_name:
+        res = get_league_by_player_name(player_name)
+    else:
+        leagues_queryset = League.objects.all().order_by("id")
+
+        if request.query_params.get("page"):
+            res = get_leagues_with_pagination(request, leagues_queryset)
+        else:
+            res = get_leagues_without_pagination(leagues_queryset)
+    
+    return res
+
+
+@extend_schema(description="More descriptive text", request=LeagueSerializer, responses=LeagueSerializer)
+@api_view(["POST"])
+def create_league(request):
+    # default empty response.
+    res = JsonResponse({}, safe=False)
+    
+    league_serializer = LeagueSerializer(data=request.data)
+
+    if league_serializer.is_valid():
+        league_serializer.save()
+        res = JsonResponse(league_serializer.data, status=201)
+    else:
+        res = JsonResponse(league_serializer.errors, status=400)
+
+    return res
+
+
+@api_view(["PUT"])
+def update_league(request, pk):
+    pass
+
+
+@api_view(["DELETE"])
+def destroy_league(request):
+    pass
+
+
+def get_league_by_player_name(player_name):
+    """Auxiliar function that intends to return a player's respective league."""
+    res = JsonResponse({}, safe=False)
+
+    try:
+        # INNER JOIN with 'Team' and 'League' tables.
+        player = Player.objects.select_related("team__league").get(name__iexact=player_name)
+        
+        league = player.team.league
+        league_serializer = LeagueSerializer(league)
+        
+        res = JsonResponse(league_serializer.data, safe=False) 
+    except Player.DoesNotExist:
+        pass
+
+    return res
+
+
+def get_leagues_with_pagination(request, leagues_queryset):
+    """Auxiliar function that intends to return all leagues without pagination functionality."""
+    paginator = SingleSetPagination()
+
+    paginated_queryset = paginator.paginate_queryset(leagues_queryset, request)
+    leagues_serializer = LeagueSerializer(paginated_queryset, many=True)
+
+    return paginator.get_paginated_response(leagues_serializer.data)
+
+
+def get_leagues_without_pagination(leagues_queryset):
+    """Auxiliar function that intends to return all leagues without pagination functionality."""
+    leagues_serializer = LeagueSerializer(leagues_queryset, many=True)
+    
+    return JsonResponse(leagues_serializer.data, safe=False)
+

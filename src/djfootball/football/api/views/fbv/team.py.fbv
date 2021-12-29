@@ -1,0 +1,60 @@
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
+from django.http.response import JsonResponse
+from rest_framework.decorators import api_view
+
+from ...models import Team
+from ..filters import TeamFilter
+from ..serializers import TeamSerializer
+from ..paginators import SingleSetPagination
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter("page", OpenApiTypes.INT, OpenApiParameter.QUERY),
+        OpenApiParameter("per_page", OpenApiTypes.INT, OpenApiParameter.QUERY),
+        
+        OpenApiParameter("name", OpenApiTypes.STR, OpenApiParameter.QUERY),
+        OpenApiParameter("city", OpenApiTypes.STR, OpenApiParameter.QUERY),
+        OpenApiParameter("championships_won", OpenApiTypes.INT, OpenApiParameter.QUERY),
+        OpenApiParameter("coach", OpenApiTypes.STR, OpenApiParameter.QUERY),
+        OpenApiParameter("number_of_players", OpenApiTypes.INT, OpenApiParameter.QUERY)
+    ],
+    description="More descriptive text",
+    responses=TeamSerializer
+)
+@api_view(['GET'])
+def get_teams(request):
+    # default empty response.
+    res = JsonResponse({}, safe=False)
+
+    teams_queryset = Team.objects.all().order_by("id")
+    
+    filterset = TeamFilter(request.GET, queryset=teams_queryset)
+    if filterset.is_valid():
+        teams_queryset = filterset.qs
+        
+    if request.query_params.get("page"):
+        res = get_teams_with_pagination(request, teams_queryset)
+    else:
+        res = get_teams_without_pagination(teams_queryset) 
+    
+    return res
+
+
+def get_teams_with_pagination(request, teams_queryset):
+    """Auxiliar function that intends to return all teams with pagination functionality."""
+    paginator = SingleSetPagination()
+
+    paginated_queryset = paginator.paginate_queryset(teams_queryset, request)
+    teams_serializer = TeamSerializer(paginated_queryset, many=True)
+
+    return paginator.get_paginated_response(teams_serializer.data)
+
+
+def get_teams_without_pagination(teams_queryset):
+    """Auxiliar function that intends to return all teams without pagination functionality."""
+    teams_serializer = TeamSerializer(teams_queryset, many=True)
+    
+    return JsonResponse(teams_serializer.data, safe=False)
+

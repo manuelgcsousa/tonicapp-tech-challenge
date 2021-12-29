@@ -1,0 +1,48 @@
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
+from django.http import JsonResponse
+from rest_framework.decorators import api_view
+
+from ...models import Player 
+from ..serializers import PlayerSerializer 
+from ..paginators import SingleSetPagination
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter("page", OpenApiTypes.INT, OpenApiParameter.QUERY),
+        OpenApiParameter("per_page", OpenApiTypes.INT, OpenApiParameter.QUERY),
+    ],
+    description="More descriptive text",
+    responses=PlayerSerializer
+)
+@api_view(["GET"])
+def get_players(request):
+    # default empty response.
+    res = JsonResponse({}, safe=False)
+
+    players_queryset = Player.objects.all().order_by("id")
+    if request.query_params.get("page"):
+        res = get_players_with_pagination(request, players_queryset)
+    else:
+        res = get_players_without_pagination(players_queryset) 
+    
+    return res
+    
+
+def get_players_with_pagination(request, players_queryset):
+    """Auxiliar function that intends to return all players with pagination functionality."""
+    paginator = SingleSetPagination()
+
+    paginated_queryset = paginator.paginate_queryset(players_queryset, request)
+    players_serializer = PlayerSerializer(paginated_queryset, many=True)
+
+    return paginator.get_paginated_response(players_serializer.data)
+
+
+def get_players_without_pagination(players_queryset):
+    """Auxiliar function that intends to return all players without pagination functionality."""
+    players_serializer = PlayerSerializer(players_queryset, many=True)
+
+    return JsonResponse(players_serializer.data, safe=False)
+
